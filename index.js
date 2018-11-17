@@ -1,7 +1,7 @@
 //Using this guide: https://cmichel.io/how-to-access-google-spreadsheet-with-node/
 //And this guide to execute local: https://medium.com/coinmonks/how-to-develop-an-amazon-alexa-skill-using-node-js-b872ef5320b1
 //Instructions to make this run local
-//
+//lambda-local -l index.js -h handler -e input.json -t 10
 
 'use strict';
 
@@ -11,6 +11,7 @@ const { promisify } = require('util')
 const Alexa = require('alexa-sdk');
 const C_DateHelper = require('./dateHelper');
 const dateHelper = new C_DateHelper();
+const removeAccents = require('remove-accents')
 
 //App constants
 const SPREADSHEET_ID = '1IpD8aJoyZGrn4RzKNKu1wur2KAEz-qXJ0ZCDXIhGnO8'
@@ -18,7 +19,8 @@ const APP_ID = "amzn1.ask.skill.cac6bafa-7c73-40c4-88b6-df010ab58315"
 const SKILL_NAME = 'Menú del día';
 const HELP_MESSAGE = 'De momento no sé hacer nada más, ya iré mejorando';
 const HELP_REPROMPT = '¿Qué puedo hacer por ti?';
-const STOP_MESSAGE = '¡A ponerse gordos!';
+const REPROMPT = '¿Quieres saber algún otro día?'
+
 
 //Variables
 var menu;
@@ -106,6 +108,9 @@ function getMeal(_day,_meal){
 }
 
 function createResponse (_day,_meal){
+  if (_day==="hoy"){
+    _day=dateHelper.getDayOfTheWeek();
+  }
   console.log("Request: "+_day+_meal)
   var dayString  = "";
   switch (_day){
@@ -140,14 +145,20 @@ function createResponse (_day,_meal){
     if (dayString === "de hoy") {
       if (dateHelper.timeOfTheDay()>12) {
         //only dinner
-        var text2read = "Para cenar hoy tenemos " + dayMeal.cena.toLowerCase() + ". " + getRandomFunEnd();
+        var text2read = "Para cenar hoy tenemos " + dayMeal.cena.toLowerCase() + ". " 
       } else{
-        var text2read = "En el menú " + dayString + " tenemos " + dayMeal.comida.toLowerCase() + " para comer y " + dayMeal.cena.toLowerCase() + " para cenar. " + getRandomFunEnd();
+        var text2read = "En el menú " + dayString + " tenemos " + dayMeal.comida.toLowerCase() + " para comer y " + dayMeal.cena.toLowerCase() + " para cenar. " 
       }
     } else {
-       var text2read = "En el menú " + dayString + " tenemos " + dayMeal.comida.toLowerCase() + " para comer y " + dayMeal.cena.toLowerCase() + " para cenar. " + getRandomFunEnd();
+       var text2read = "En el menú " + dayString + " tenemos " + dayMeal.comida.toLowerCase() + " para comer y " + dayMeal.cena.toLowerCase() + " para cenar. " 
     }
-  } else {};
+  } else {
+    if (_meal==="cena"){
+        var text2read = "En la cena " + dayString + " tenemos " + dayMeal.cena.toLowerCase() + ". ";
+    } else {
+         var text2read = "En la comida " + dayString + " tenemos " + dayMeal.comida.toLowerCase() + ". ";
+    }
+  };
   var myResponse = {
         cardTitle:"Menú del día"
         , text: text2read
@@ -169,18 +180,36 @@ function createResponse (_day,_meal){
 const handlers = {
     'menuDia': function () {
         let diaSemana = this.event.request.intent.slots.diaSemana.value;     
-        diaSemana = diaSemana.toLowerCase(); 
+        diaSemana = removeAccents.remove(diaSemana.toLowerCase()); 
         var myresponse = createResponse(diaSemana,"all");
         this.response.cardRenderer(myresponse.cardTitle,myresponse.text);
-        this.response.speak(myresponse.text2read)
-        this.response.listen("¿Quieres saber algún otro día?");
+        this.response.speak(myresponse.text2read+REPROMPT)
+        this.response.listen();
+        this.emit(':responseReady');
+    },
+    'cenaDia': function () {
+        let diaSemana = this.event.request.intent.slots.diaSemana.value;     
+        diaSemana = removeAccents.remove(diaSemana.toLowerCase()); 
+        var myresponse = createResponse(diaSemana,"cena");
+        this.response.cardRenderer(myresponse.cardTitle,myresponse.text);
+        this.response.speak(myresponse.text2read+REPROMPT)
+        this.response.listen();
+        this.emit(':responseReady');
+    },
+    'comidaDia': function () {
+        let diaSemana = this.event.request.intent.slots.diaSemana.value;     
+        diaSemana = removeAccents.remove(diaSemana.toLowerCase());  
+        var myresponse = createResponse(diaSemana,"comida");
+        this.response.cardRenderer(myresponse.cardTitle,myresponse.text);
+        this.response.speak(myresponse.text2read+REPROMPT)
+        this.response.listen();
         this.emit(':responseReady');
     },
     'LaunchRequest': function () {
         var myresponse = createResponse(dateHelper.getDayOfTheWeek(),"all");
         this.response.cardRenderer(myresponse.cardTitle,myresponse.text);
-        this.response.speak(myresponse.text2read)
-        this.response.listen("¿Quieres saber algún otro día?");
+        this.response.speak(myresponse.text2read+REPROMPT)
+        this.response.listen();
         this.emit(':responseReady');
     },
     'AMAZON.HelpIntent': function () {
@@ -191,21 +220,27 @@ const handlers = {
         this.emit(':responseReady');
     },
     'AMAZON.CancelIntent': function () {
-        this.response.speak(STOP_MESSAGE);
+        var randomFact = getRandomFunEnd()
+        this.response.speak(randomFact);
+        this.response.cardRenderer(randomFact);
         this.emit(':responseReady');
     },
     'AMAZON.StopIntent': function () {
-        this.response.speak(STOP_MESSAGE);
+        var randomFact = getRandomFunEnd()
+        this.response.speak(randomFact);
+        this.response.cardRenderer(randomFact);
         this.emit(':responseReady');
     },
     'AMAZON.SessionEndedRequest': function () {
-        this.response.speak(STOP_MESSAGE);
+        var randomFact = getRandomFunEnd()
+        this.response.speak(randomFact);
+        this.response.cardRenderer(randomFact);
         this.emit(':responseReady');
     },
 };
 
 exports.handler = async function (event, context, callback) {
-
+    console.log("Request received: " + JSON.stringify(event.request))
     menu =  parseMenu(await accessSpreadsheet());
     const alexa = Alexa.handler(event, context, callback);
     alexa.APP_ID = APP_ID
